@@ -7,6 +7,20 @@ from torch.utils.cpp_extension import load
 __version__ = "0.2"
 
 
+def _cuda_include_dir():
+    """Return the CUDA toolkit include directory, or *None* if not found."""
+    cuda_home = os.environ.get("CUDA_HOME") or os.environ.get("CUDA_PATH")
+    if cuda_home is None:
+        # torch.utils.cpp_extension caches the result of its own search
+        from torch.utils.cpp_extension import _find_cuda_home
+        cuda_home = _find_cuda_home()
+    if cuda_home:
+        inc = os.path.join(cuda_home, "include")
+        if os.path.isdir(inc):
+            return inc
+    return None
+
+
 def load_cpp_ext(ext_name):
     root_dir = os.path.join(os.path.split(__file__)[0])
     ext_csrc = os.path.join(root_dir, "csrc")
@@ -23,10 +37,15 @@ def load_cpp_ext(ext_name):
         "-D__CUDA_NO_HALF_CONVERSIONS__",
         "-D__CUDA_NO_HALF2_OPERATORS__",
     ]
+    extra_include_paths = []
+    cuda_inc = _cuda_include_dir()
+    if cuda_inc is not None:
+        extra_include_paths.append(cuda_inc)
     ext = load(
         name=ext_name,
         sources=ext_sources,
         extra_cflags=["-O2"],
+        extra_include_paths=extra_include_paths,
         build_directory=ext_path,
         extra_cuda_cflags=extra_cuda_cflags,
         verbose=False,
